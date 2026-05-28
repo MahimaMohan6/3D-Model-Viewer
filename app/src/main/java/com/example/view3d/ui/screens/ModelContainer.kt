@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
@@ -24,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
@@ -39,6 +41,7 @@ import io.github.sceneview.SceneView
 import io.github.sceneview.math.Position
 import io.github.sceneview.node.ModelNode
 import kotlin.math.abs
+import kotlin.math.max
 
 private const val BASE_CARD_DP = 160
 
@@ -116,12 +119,19 @@ fun ModelContainer(
                 }
             }
             .size(cardSizeDp.dp)
+            .shadow(
+                elevation = 32.dp,
+                shape = RoundedCornerShape(16.dp),
+                spotColor = if (model.isInteractionMode) Color(0xFFFF00FF) else Color(0xFF00D1FF)
+            )
             .clipToBounds()
-            .background(Color(0xFF1A1A1A))
+            .background(Color(0xFF1A1B1F))
             .border(
                 2.dp,
-                if (model.isInteractionMode) Color.Green else Color.DarkGray
-            ),
+                if (model.isInteractionMode) Color(0xFFFF00FF) else Color(0xFF00D1FF),
+                shape = RoundedCornerShape(16.dp)
+            )
+            .padding(8.dp),
         contentAlignment = Alignment.Center
     ) {
         AndroidView(
@@ -175,21 +185,33 @@ fun ModelContainer(
                                 assetFileLocation =
                                     model.assetFile
                             ),
-                        scaleToUnits = 1f,
-                        centerOrigin = null
+                        scaleToUnits =1f,
+                        centerOrigin = Position(0f,0f,0f)
                     )
                     addChildNode(node)
                     modelNodeRef.value = node
                     post {
-                        val maxHalf = max(node.halfExtent)
-                        val camZ = if (maxHalf > 0f && !maxHalf.isNaN())
-                            (maxHalf * 3.5f).coerceIn(1.5f, 6f)
-                        else 2.5f
+                        val sizeX = node.extents.x
+                        val sizeY = node.extents.y
+                        val sizeZ = node.extents.z
+                        val maxDimension = max(sizeX, max(sizeY, sizeZ))
+                        val normalizedScale = 1.8f / maxDimension
+                        node.scale = Float3(
+                            normalizedScale,
+                            normalizedScale,
+                            normalizedScale
+                        )
+                        node.position = Position(
+                            -node.center.x * normalizedScale,
+                            -node.center.y * normalizedScale,
+                            -node.center.z * normalizedScale
+                        )
+                        val camZ = 3.2f
                         model.cameraZoom = camZ
                         cameraNode.position = Position(
-                            x = node.center.x,
-                            y = node.center.y,
-                            z = camZ
+                            0f,
+                            0f,
+                            camZ
                         )
                     }
                 }
@@ -205,15 +227,14 @@ fun ModelContainer(
                 sceneView.cameraNode.position =
                     Position(
                         0f,
-                        0.5f,
+                        0f,
                         model.cameraZoom
                     )
             }
         )
         IconButton(
             onClick = onRemove,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
+            modifier = Modifier.align(Alignment.TopEnd)
         ) {
             Icon(
                 Icons.Default.Close,
@@ -231,14 +252,12 @@ fun ModelContainer(
                 .padding(bottom = 6.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor =
-                    if (model.isInteractionMode)
-                        MaterialTheme.colorScheme.primary
-                    else
-                        Color(0xFF48484A)
-            )
+                   Color(0xFF1A1B1F)
+            ),
         ) {
             Text(
-                if (model.isInteractionMode) "Done" else "Interact"
+                if (model.isInteractionMode) "Done" else "Interact",
+                color = if (model.isInteractionMode) Color(0xFF00D1FF) else Color(0xFFB0B3B8)
             )
         }
     }
