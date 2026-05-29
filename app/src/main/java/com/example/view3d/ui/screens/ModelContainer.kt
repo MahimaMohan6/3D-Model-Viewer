@@ -2,7 +2,6 @@
 
 package com.example.view3d.ui.screens
 
-import android.graphics.Color.TRANSPARENT
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -53,6 +52,10 @@ import kotlin.math.max
 private const val BASE_CARD_DP = 160
 private const val INITIAL_CAM_Z = 3.2f
 
+private fun cardSizeDpFor(scale: Float): Float {
+    return (BASE_CARD_DP * scale).coerceIn(80f, 400f)
+}
+
 @Composable
 fun ModelContainer(
     model: ModelItem,
@@ -67,7 +70,7 @@ fun ModelContainer(
     val modelNodeRef = remember { mutableStateOf<ModelNode?>(null) }
     val sceneViewRef = remember { mutableStateOf<SceneView?>(null) }
 
-    val cardSizeDp = (BASE_CARD_DP * model.scale).coerceIn(80f, 400f)
+    val cardSizeDp = cardSizeDpFor(model.scale)
 
     Box(
         modifier = Modifier
@@ -90,7 +93,7 @@ fun ModelContainer(
                 if (model.isInteractionMode) Color(0xFFFF00FF) else Color(0xFF00D1FF),
                 shape = RoundedCornerShape(16.dp)
             )
-            .pointerInput(model.isInteractionMode) {
+            .pointerInput(model.isInteractionMode, screenWidth, screenHeight, density) {
                 if (!model.isInteractionMode) {
                     awaitEachGesture {
                         awaitFirstDown(requireUnconsumed = false)
@@ -101,12 +104,20 @@ fun ModelContainer(
                                 active.size >= 2 -> {
                                     val rawZoom = event.calculateZoom()
                                     if (abs(rawZoom - 1f) > 0.01f) {
-                                        val maxScale = (minOf(
-                                            screenWidth,
-                                            screenHeight
-                                        ) / BASE_CARD_DP).coerceAtMost(2.5f)
-                                        model.scale =
-                                            (model.scale * rawZoom).coerceIn(0.5f, maxScale)
+                                        val maxScale =
+                                            (minOf(screenWidth, screenHeight) / BASE_CARD_DP)
+                                                .coerceAtMost(2.5f)
+                                                .coerceAtLeast(0.5f)
+                                        val newScale = (model.scale * rawZoom)
+                                            .coerceIn(0.5f, maxScale)
+                                        model.scale = newScale
+                                        val newCardSizeDp = cardSizeDpFor(newScale)
+                                        val maxOffsetX =
+                                            (screenWidth - newCardSizeDp).coerceAtLeast(0f)
+                                        val maxOffsetY =
+                                            (screenHeight - newCardSizeDp).coerceAtLeast(0f)
+                                        model.offsetX = model.offsetX.coerceIn(0f, maxOffsetX)
+                                        model.offsetY = model.offsetY.coerceIn(0f, maxOffsetY)
                                     }
                                     event.changes.forEach { it.consume() }
                                 }
@@ -115,10 +126,11 @@ fun ModelContainer(
                                     val change = active.first()
                                     if (change.positionChanged()) {
                                         val drag = change.position - change.previousPosition
+                                        val currentCardSizeDp = cardSizeDpFor(model.scale)
                                         val maxOffsetX =
-                                            (screenWidth - cardSizeDp).coerceAtLeast(0f)
+                                            (screenWidth - currentCardSizeDp).coerceAtLeast(0f)
                                         val maxOffsetY =
-                                            (screenHeight - cardSizeDp).coerceAtLeast(0f)
+                                            (screenHeight - currentCardSizeDp).coerceAtLeast(0f)
                                         model.offsetX = (model.offsetX + drag.x / density).coerceIn(
                                             0f,
                                             maxOffsetX
@@ -138,9 +150,11 @@ fun ModelContainer(
         contentAlignment = Alignment.Center
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Box(modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
                 AndroidView(
                     modifier = Modifier
                         .matchParentSize()
@@ -186,9 +200,7 @@ fun ModelContainer(
                         SceneView(
                             context = context,
                             cameraManipulator = null,
-//                            isOpaque = false
                         ).apply {
-                            setBackgroundColor(TRANSPARENT)
                             val node = ModelNode(
                                 modelInstance =
                                     modelLoader.createModelInstance(assetFileLocation = model.assetFile),
